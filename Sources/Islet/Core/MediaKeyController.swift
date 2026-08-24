@@ -13,8 +13,6 @@ final class MediaKeyController {
     private let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private var esperandoPermissao: Timer?
-    private var jaAvisou = false
-    private var tentativas = 0
     /// Teclas cujo "pressionar" nós engolimos — o "soltar" tem que ir junto.
     private var engolidas = Set<MediaKey>()
 
@@ -55,17 +53,12 @@ final class MediaKeyController {
         // pessoa autorizar, sem precisar reabrir o app.
         MediaKeyTap.requestPermission()
         guard esperandoPermissao == nil else { return }
-        tentativas = 0
         let timer = Timer(timeInterval: 3, repeats: true) { [weak self] timer in
             MainActor.assumeIsolated {
                 guard let self, self.settings.interceptMediaKeys else {
                     timer.invalidate()
                     return
                 }
-                self.tentativas += 1
-                // O pedido do sistema só aparece uma vez na vida do app. Se
-                // passou tempo e nada, explicamos com um caminho clicável.
-                if self.tentativas == 5 { self.avisarSobrePermissao() }
                 if self.tap.start() {
                     Debug.log("permissão concedida; teclas de mídia assumidas")
                     timer.invalidate()
@@ -77,30 +70,16 @@ final class MediaKeyController {
         esperandoPermissao = timer
     }
 
-    /// O pedido do sistema só aparece uma vez por app; sem um aviso próprio, a
-    /// falha ficaria silenciosa e as teclas pareceriam simplesmente quebradas.
-    private func avisarSobrePermissao() {
-        guard !jaAvisou else { return }
-        jaAvisou = true
-
-        let alerta = NSAlert()
-        alerta.messageText = "O Islet precisa de Acessibilidade"
-        alerta.informativeText =
-            "Para esconder o HUD do sistema, o Islet assume as teclas de volume "
-            + "e brilho. Um atalho de teclado precisa de duas autorizações: uma "
-            + "para ver a tecla e outra para consumi-la.\n\nFalta: "
-            + MediaKeyTap.missingPermissions.joined(separator: " e ")
-            + ".\n\nAjustes do Sistema › Privacidade e Segurança."
-        alerta.addButton(withTitle: "Abrir Ajustes")
-        alerta.addButton(withTitle: "Agora não")
-        NSApp.activate(ignoringOtherApps: true)
-
-        guard alerta.runModal() == .alertFirstButtonReturn else { return }
-        // Abre o painel do que está faltando: são dois lugares diferentes, e
-        // mandar para o painel errado é meio caminho para a pessoa desistir.
-        let painel = MediaKeyTap.hasInputMonitoring
-            ? "Privacy_Accessibility"
-            : "Privacy_ListenEvent"
+    /// Abre o painel de Ajustes do que está faltando.
+    ///
+    /// Deliberadamente não abrimos alerta modal aqui. Um app acessório que
+    /// chama `NSApp.activate(ignoringOtherApps:)` e `runModal()` rouba o foco
+    /// de quem está digitando e trava a thread principal — o custo de avisar
+    /// não pode ser sequestrar a máquina. Quem avisa é o menu da barra.
+    func abrirAjustesDePermissao() {
+        let painel = MediaKeyTap.hasAccessibility
+            ? "Privacy_ListenEvent"
+            : "Privacy_Accessibility"
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(painel)")
         else { return }
         NSWorkspace.shared.open(url)

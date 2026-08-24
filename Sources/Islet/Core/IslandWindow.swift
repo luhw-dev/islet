@@ -43,7 +43,11 @@ final class IslandWindow: NSPanel {
         contentView = container
     }
 
-    override var canBecomeKey: Bool { true }
+    /// Nunca. Não há campo de texto na ilha, e um painel sem borda que vira
+    /// janela chave passa a receber o teclado — quem estiver digitando perde as
+    /// teclas para uma janela que não faz nada com elas. Botões, gestos e
+    /// arrastar-e-soltar funcionam sem ser chave.
+    override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
     var passthroughView: PassthroughView? { contentView as? PassthroughView }

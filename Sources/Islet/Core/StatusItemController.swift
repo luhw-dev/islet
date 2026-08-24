@@ -84,6 +84,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         teclas.state = app.settings.interceptMediaKeys ? .on : .off
         menu.addItem(teclas)
 
+        if app.mediaKeys.needsPermission {
+            let ajustes = NSMenuItem(
+                title: "Abrir Ajustes de Privacidade…",
+                action: #selector(abrirPermissao),
+                keyEquivalent: ""
+            )
+            ajustes.target = self
+            menu.addItem(ajustes)
+        }
+
         let halo = NSMenu()
         for estilo in HaloStyle.allCases {
             let item = NSMenuItem(title: estilo.title, action: #selector(setHalo(_:)), keyEquivalent: "")
@@ -166,6 +176,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func toggleHaptics() {
         app.settings.hapticFeedback.toggle()
+    }
+
+    @objc private func abrirPermissao() {
+        app.mediaKeys.abrirAjustesDePermissao()
     }
 
     @objc private func toggleMediaKeys() {
