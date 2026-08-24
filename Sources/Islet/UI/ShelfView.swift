@@ -4,6 +4,7 @@ import SwiftUI
 /// para soltar em outro app.
 struct ShelfView: View {
     @ObservedObject var model: IslandModel
+    @EnvironmentObject private var shelf: ShelfStore
 
     var body: some View {
         ZStack {
@@ -12,18 +13,18 @@ struct ShelfView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(
                     Color.white.opacity(model.isDropTargeted ? 0.45 : 0.12),
-                    style: StrokeStyle(lineWidth: 1, dash: model.shelfItems.isEmpty ? [4, 4] : [])
+                    style: StrokeStyle(lineWidth: 1, dash: shelf.items.isEmpty ? [4, 4] : [])
                 )
 
-            if model.shelfItems.isEmpty {
+            if shelf.items.isEmpty {
                 Label("Solte arquivos aqui", systemImage: "tray.and.arrow.down")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.45))
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(model.shelfItems) { item in
-                            ShelfChip(item: item) { model.removeFromShelf(item) }
+                        ForEach(shelf.items) { item in
+                            ShelfChip(item: item) { shelf.remove(item) }
                         }
                     }
                     .padding(.horizontal, 8)

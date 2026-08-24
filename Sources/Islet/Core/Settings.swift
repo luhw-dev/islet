@@ -1,27 +1,6 @@
 import Foundation
 import Combine
 
-/// Material do halo de desfoque ao redor da ilha aberta.
-///
-/// Nenhuma opção é "só desfoque": o macOS não deixa um app ler os pixels de
-/// outras janelas, então o desfoque sempre vem acompanhado de um material —
-/// e todo material ou clareia ou escurece o que está atrás.
-enum HaloStyle: String, CaseIterable {
-    /// Vidro do Tahoe: refrata, mas clareia um pouco.
-    case vidro
-    /// Material clássico: borra mais, e escurece.
-    case escuro
-    case nenhum
-
-    var title: String {
-        switch self {
-        case .vidro: return "Halo de vidro (clareia)"
-        case .escuro: return "Halo escuro (escurece)"
-        case .nenhum: return "Sem halo"
-        }
-    }
-}
-
 /// Como a ilha reage ao mouse.
 enum ActivationMode: String, CaseIterable {
     /// Passar o mouse por cima expande (padrão).
@@ -49,7 +28,6 @@ final class Settings: ObservableObject {
         static let showSystemHUD = "showSystemHUD"
         static let interceptMediaKeys = "interceptMediaKeys"
         static let hapticFeedback = "hapticFeedback"
-        static let haloStyle = "haloStyle"
     }
 
     /// Desenha uma ilha falsa em telas sem notch (monitores externos).
@@ -95,10 +73,6 @@ final class Settings: ObservableObject {
         }
     }
 
-    @Published var haloStyle: HaloStyle {
-        didSet { defaults.set(haloStyle.rawValue, forKey: Key.haloStyle) }
-    }
-
     private let defaults = UserDefaults.standard
 
     init() {
@@ -110,8 +84,7 @@ final class Settings: ObservableObject {
             Key.activation: ActivationMode.hover.rawValue,
             Key.showSystemHUD: true,
             Key.interceptMediaKeys: true,
-            Key.hapticFeedback: true,
-            Key.haloStyle: HaloStyle.vidro.rawValue
+            Key.hapticFeedback: true
         ])
         simulateOnExternal = defaults.bool(forKey: Key.simulateOnExternal)
         showOnNotchedScreen = defaults.bool(forKey: Key.showOnNotchedScreen)
@@ -121,7 +94,6 @@ final class Settings: ObservableObject {
         showSystemHUD = defaults.bool(forKey: Key.showSystemHUD)
         interceptMediaKeys = defaults.bool(forKey: Key.interceptMediaKeys)
         hapticFeedback = defaults.bool(forKey: Key.hapticFeedback)
-        haloStyle = HaloStyle(rawValue: defaults.string(forKey: Key.haloStyle) ?? "") ?? .vidro
         Haptics.enabled = hapticFeedback
     }
 }

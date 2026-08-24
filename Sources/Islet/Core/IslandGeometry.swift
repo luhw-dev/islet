@@ -10,13 +10,6 @@ enum Metrics {
     /// concêntrico; a ilha aberta acompanha para parecer parte do sistema.
     /// Recolhida ela segue o canto do notch físico, que é bem menor.
     static let bottomRadiusExpanded: CGFloat = 34
-    /// Quanto o desfoque se espalha para fora da silhueta da ilha, e quão
-    /// forte ele é. O espalhamento precisa acompanhar o raio: raio grande num
-    /// espalhamento curto não tem espaço para se manifestar.
-    static let haloDesfoque: CGFloat = 70
-    /// Fração do espalhamento usada como raio de borrão da máscara. Quanto
-    /// maior, mais longa a transição entre borrado e nítido.
-    static let haloSuavidade: CGFloat = 0.5
     static let bottomRadiusCollapsed: CGFloat = 14
     static let bottomRadiusHUD: CGFloat = 16
 

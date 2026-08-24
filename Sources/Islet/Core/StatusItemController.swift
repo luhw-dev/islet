@@ -94,18 +94,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(ajustes)
         }
 
-        let halo = NSMenu()
-        for estilo in HaloStyle.allCases {
-            let item = NSMenuItem(title: estilo.title, action: #selector(setHalo(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = estilo.rawValue
-            item.state = app.settings.haloStyle == estilo ? .on : .off
-            halo.addItem(item)
-        }
-        let haloItem = NSMenuItem(title: "Desfoque ao redor", action: nil, keyEquivalent: "")
-        haloItem.submenu = halo
-        menu.addItem(haloItem)
-
         let haptico = NSMenuItem(
             title: "Retorno tátil no trackpad",
             action: #selector(toggleHaptics),
@@ -141,6 +129,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let inicio = NSMenuItem(
+            title: "Abrir junto com o sistema",
+            action: #selector(toggleLoginItem),
+            keyEquivalent: ""
+        )
+        inicio.target = self
+        inicio.state = LoginItem.isEnabled ? .on : .off
+        menu.addItem(inicio)
+
         let reload = NSMenuItem(title: "Recarregar telas", action: #selector(reload), keyEquivalent: "r")
         reload.target = self
         menu.addItem(reload)
@@ -168,12 +165,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         app.settings.announceTrackChanges.toggle()
     }
 
-    @objc private func setHalo(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let estilo = HaloStyle(rawValue: raw) else { return }
-        app.settings.haloStyle = estilo
-    }
-
     @objc private func toggleHaptics() {
         app.settings.hapticFeedback.toggle()
     }
@@ -194,6 +185,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         guard let valor = sender.representedObject as? Double else { return }
         app.settings.simulatedWidth = valor
         onRebuild()
+    }
+
+    @objc private func toggleLoginItem() {
+        // Sem alerta modal aqui de propósito. Se falhar, o item simplesmente
+        // não fica marcado — feedback honesto e sem roubar o foco de ninguém.
+        if let erro = LoginItem.setEnabled(!LoginItem.isEnabled) {
+            Debug.log("falha ao mexer no item de início: \(erro.localizedDescription)")
+        }
     }
 
     @objc private func reload() {

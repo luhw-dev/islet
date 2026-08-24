@@ -6,7 +6,7 @@ struct IslandView: View {
     @EnvironmentObject private var battery: BatteryMonitor
     @EnvironmentObject private var media: NowPlayingMonitor
     @EnvironmentObject private var clipboard: ClipboardMonitor
-    @EnvironmentObject private var settings: Settings
+    @EnvironmentObject private var shelf: ShelfStore
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -16,65 +16,12 @@ struct IslandView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// Estados com conteúdo ganham o halo; recolhido não, porque ali a ilha
-    /// precisa se confundir com o notch físico e um borrão em volta denunciaria
-    /// que aquilo é desenho.
-    private var usaDesfoque: Bool {
-        model.mode == .expanded || model.mode == .peek
-    }
-
-    /// O vidro do Tahoe refrata o que está atrás sem a tinta que todo material
-    /// do `NSVisualEffectView` carrega. Em sistemas anteriores caímos no
-    /// material menos tingido que existe.
-    @ViewBuilder
-    private func materialDoHalo(forma: NotchShape) -> some View {
-        switch settings.haloStyle {
-        case .vidro:
-            if #available(macOS 26.0, *) {
-                Color.clear.glassEffect(.clear, in: forma)
-            } else {
-                BackdropBlur(material: .fullScreenUI)
-            }
-        case .escuro:
-            BackdropBlur(material: .hudWindow)
-        case .nenhum:
-            Color.clear
-        }
-    }
-
-    /// Desfoque que vaza para fora da silhueta, borrando as janelas ao redor.
-    ///
-    /// A máscara é a própria forma da ilha, um pouco maior e borrada: onde a
-    /// máscara é opaca o desfoque aparece, e ela se desfaz conforme se afasta.
-    /// A parte de dentro fica escondida pela ilha, que é opaca.
-    @ViewBuilder
-    private func halo(forma: NotchShape, corpo: CGSize) -> some View {
-        if usaDesfoque, settings.haloStyle != .nenhum {
-            let largura = corpo.width + Metrics.wingRadius * 2
-            let espalhamento = Metrics.haloDesfoque
-
-            materialDoHalo(forma: forma)
-                .frame(width: largura + espalhamento * 2,
-                       height: corpo.height + espalhamento * 2)
-                .mask {
-                    forma
-                        .fill(Color.black)
-                        .frame(width: largura + espalhamento * 0.55,
-                               height: corpo.height + espalhamento * 0.55)
-                        .blur(radius: espalhamento * Metrics.haloSuavidade)
-                }
-                .allowsHitTesting(false)
-                .transition(.opacity)
-        }
-    }
-
     private var island: some View {
         let corpo = model.bodySize
         let forma = NotchShape(bottomRadius: model.bottomRadius)
         return forma
             // Preto sólido: o desfoque é em volta, não através dela.
             .fill(Color.black)
-            .background { halo(forma: forma, corpo: corpo) }
             .frame(width: corpo.width + Metrics.wingRadius * 2, height: corpo.height)
             .overlay {
                 content
@@ -91,7 +38,9 @@ struct IslandView: View {
                         .onTapGesture { model.toggleExpanded() }
                 }
             }
-            .shadow(color: .black.opacity(usaDesfoque ? 0.55 : 0), radius: 16, y: 6)
+            .shadow(
+                color: .black.opacity(model.mode == .collapsed ? 0 : 0.55),
+                radius: 16, y: 6)
             .onDrop(of: [UTType.fileURL], isTargeted: $model.isDropTargeted, perform: handleDrop)
             .onChange(of: model.isDropTargeted) { _, arrastando in
                 if arrastando { model.beginDrop() } else { model.endDrop() }
@@ -294,12 +243,14 @@ struct IslandView: View {
                     icone: "exclamationmark.triangle",
                     cor: .orange)
             } else {
+                // Sem música a página fica com um bloco só; centralizar evita o
+                // vazio no topo com tudo empurrado para o rodapé.
                 HStack(alignment: .center) {
                     BatteryBadge()
                     Spacer(minLength: 8)
                     ClockBlock()
                 }
-                .frame(maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
         }
     }
@@ -310,8 +261,8 @@ struct IslandView: View {
         ShelfView(model: model)
             .frame(maxHeight: .infinity)
             .overlay(alignment: .topTrailing) {
-                if !model.shelfItems.isEmpty {
-                    BotaoDeLixeira { model.clearShelf() }
+                if !shelf.items.isEmpty {
+                    BotaoDeLixeira { shelf.clear() }
                         .padding(6)
                 }
             }

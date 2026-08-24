@@ -39,14 +39,6 @@ enum CompactContent: Equatable {
     case charging
 }
 
-struct ShelfItem: Identifiable, Equatable {
-    let id = UUID()
-    let url: URL
-
-    var icon: NSImage { NSWorkspace.shared.icon(forFile: url.path) }
-    var name: String { url.lastPathComponent }
-}
-
 /// Estado de uma ilha (uma instância por tela).
 @MainActor
 final class IslandModel: ObservableObject {
@@ -57,7 +49,6 @@ final class IslandModel: ObservableObject {
         }
     }
     @Published var isDropTargeted = false
-    @Published var shelfItems: [ShelfItem] = []
     /// Segura a ilha aberta por um tempo mesmo sem o mouse em cima (ex.: avisou que ligou na tomada).
     @Published private(set) var isPinnedOpen = false
     @Published private(set) var hud: HUDEvent?
@@ -97,7 +88,7 @@ final class IslandModel: ObservableObject {
 
     /// A prateleira some quando está vazia: sem ela a ilha fica do tamanho da
     /// referência, e ela reaparece assim que chega arquivo.
-    var showsShelf: Bool { !shelfItems.isEmpty || isDropTargeted }
+    var showsShelf: Bool { !app.shelf.items.isEmpty || isDropTargeted }
 
     /// O quanto a ilha recolhida cresce com o mouse em cima.
     var hoverBump: (width: CGFloat, height: CGFloat) {
@@ -423,17 +414,6 @@ final class IslandModel: ObservableObject {
     func addToShelf(_ urls: [URL]) {
         page = .shelf
         Haptics.tap()
-        let known = Set(shelfItems.map(\.url))
-        let novos = urls.filter { !known.contains($0) }.map { ShelfItem(url: $0) }
-        guard !novos.isEmpty else { return }
-        shelfItems.append(contentsOf: novos)
-    }
-
-    func removeFromShelf(_ item: ShelfItem) {
-        shelfItems.removeAll { $0.id == item.id }
-    }
-
-    func clearShelf() {
-        shelfItems.removeAll()
+        app.shelf.add(urls)
     }
 }
