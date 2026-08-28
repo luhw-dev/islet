@@ -10,5 +10,6 @@ final class AppModel {
     let audioOutput = AudioOutputManager()
     let clipboard = ClipboardMonitor()
     let shelf = ShelfStore()
+    lazy var usage = UsageMonitor(settings: settings)
     lazy var mediaKeys = MediaKeyController(hud: hud, settings: settings)
 }

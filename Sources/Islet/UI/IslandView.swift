@@ -7,6 +7,9 @@ struct IslandView: View {
     @EnvironmentObject private var media: NowPlayingMonitor
     @EnvironmentObject private var clipboard: ClipboardMonitor
     @EnvironmentObject private var shelf: ShelfStore
+    // Só para as bolinhas acompanharem quando a página de uso é ligada ou
+    // desligada no menu.
+    @EnvironmentObject private var settings: Settings
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -209,13 +212,14 @@ struct IslandView: View {
         case .media: paginaMidia
         case .shelf: paginaPrateleira
         case .clipboard: paginaTransferencia
+        case .usage: UsageView()
         }
     }
 
     /// Bolinhas discretas: sem elas o swipe seria um recurso invisível.
     private var pontosDePagina: some View {
         HStack(spacing: 4) {
-            ForEach(IslandPage.allCases, id: \.rawValue) { pagina in
+            ForEach(model.visiblePages, id: \.rawValue) { pagina in
                 Capsule()
                     .fill(Color.white.opacity(pagina == model.page ? 0.65 : 0.2))
                     .frame(width: pagina == model.page ? 10 : 4, height: 4)

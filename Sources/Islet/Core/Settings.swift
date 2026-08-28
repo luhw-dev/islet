@@ -28,6 +28,7 @@ final class Settings: ObservableObject {
         static let showSystemHUD = "showSystemHUD"
         static let interceptMediaKeys = "interceptMediaKeys"
         static let hapticFeedback = "hapticFeedback"
+        static let showUsage = "showUsage"
     }
 
     /// Desenha uma ilha falsa em telas sem notch (monitores externos).
@@ -73,6 +74,11 @@ final class Settings: ObservableObject {
         }
     }
 
+    /// Mostra a página de uso dos assistentes (Claude, Codex).
+    @Published var showUsage: Bool {
+        didSet { defaults.set(showUsage, forKey: Key.showUsage) }
+    }
+
     private let defaults = UserDefaults.standard
 
     init() {
@@ -84,7 +90,8 @@ final class Settings: ObservableObject {
             Key.activation: ActivationMode.hover.rawValue,
             Key.showSystemHUD: true,
             Key.interceptMediaKeys: true,
-            Key.hapticFeedback: true
+            Key.hapticFeedback: true,
+            Key.showUsage: true
         ])
         simulateOnExternal = defaults.bool(forKey: Key.simulateOnExternal)
         showOnNotchedScreen = defaults.bool(forKey: Key.showOnNotchedScreen)
@@ -94,6 +101,7 @@ final class Settings: ObservableObject {
         showSystemHUD = defaults.bool(forKey: Key.showSystemHUD)
         interceptMediaKeys = defaults.bool(forKey: Key.interceptMediaKeys)
         hapticFeedback = defaults.bool(forKey: Key.hapticFeedback)
+        showUsage = defaults.bool(forKey: Key.showUsage)
         Haptics.enabled = hapticFeedback
     }
 }

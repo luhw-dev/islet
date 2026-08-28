@@ -103,6 +103,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         haptico.state = app.settings.hapticFeedback ? .on : .off
         menu.addItem(haptico)
 
+        let uso = NSMenuItem(
+            title: "Mostrar uso de IA (Claude e Codex)",
+            action: #selector(toggleUsage),
+            keyEquivalent: ""
+        )
+        uso.target = self
+        uso.state = app.settings.showUsage ? .on : .off
+        menu.addItem(uso)
+
         let announce = NSMenuItem(
             title: "Avisar quando a música mudar",
             action: #selector(toggleAnnounce),
@@ -159,6 +168,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func toggleNotch() {
         app.settings.showOnNotchedScreen.toggle()
+    }
+
+    @objc private func toggleUsage() {
+        app.settings.showUsage.toggle()
     }
 
     @objc private func toggleAnnounce() {

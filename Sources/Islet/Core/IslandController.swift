@@ -20,6 +20,7 @@ final class IslandController {
             .environmentObject(app.audioOutput)
             .environmentObject(app.clipboard)
             .environmentObject(app.shelf)
+            .environmentObject(app.usage)
 
         let hosting = NSHostingView(rootView: root)
         hosting.frame = CGRect(origin: .zero, size: geometry.windowFrame.size)
