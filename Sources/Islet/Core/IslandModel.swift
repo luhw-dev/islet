@@ -15,6 +15,7 @@ enum IslandPage: Int, CaseIterable {
     case media
     case shelf
     case clipboard
+    case usage
 
     /// Páginas com lista própria ficam com o eixo vertical: ali o swipe para
     /// baixo rola o conteúdo, e a troca de página fica só no horizontal.
@@ -45,6 +46,7 @@ final class IslandModel: ObservableObject {
     @Published var mode: IslandMode = .collapsed {
         didSet {
             guard mode != oldValue else { return }
+            if mode == .expanded, page == .usage { app.usage.refreshIfStale() }
             Debug.log("modo \(oldValue) -> \(mode) (zona=\(hoverZone))")
         }
     }
@@ -54,7 +56,13 @@ final class IslandModel: ObservableObject {
     @Published private(set) var hud: HUDEvent?
     @Published private(set) var hoverZone: HoverZone = .none
     @Published private(set) var isHovering = false
-    @Published var page: IslandPage = .media
+    @Published var page: IslandPage = .media {
+        didSet {
+            // A consulta de uso sai daqui, e não do lançamento: assim o app só
+            // toca no chaveiro quando a página é realmente aberta.
+            if page != oldValue, page == .usage { app.usage.refreshIfStale() }
+        }
+    }
     @Published private(set) var isMenuOpen = false
 
     let geometry: IslandGeometry
@@ -65,11 +73,29 @@ final class IslandModel: ObservableObject {
     private var hudTask: Task<Void, Never>?
     private var expansaoTask: Task<Void, Never>?
     private var peekTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
 
 
     init(geometry: IslandGeometry, app: AppModel) {
         self.geometry = geometry
         self.app = app
+
+        // Desligar a página de uso com ela na tela deixaria a ilha numa página
+        // que não existe mais.
+        app.settings.$showUsage
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] ativo in
+                guard let self, !ativo, self.page == .usage else { return }
+                self.page = .media
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Páginas que entram no swipe agora. A de uso some quando desligada nos
+    /// ajustes — e some junto das bolinhas, para não virar um passo vazio.
+    var visiblePages: [IslandPage] {
+        IslandPage.allCases.filter { $0 != .usage || app.settings.showUsage }
     }
 
     var hasNotch: Bool { geometry.hasNotch }
@@ -271,7 +297,7 @@ final class IslandModel: ObservableObject {
 
     /// Swipe vertical troca a página exibida.
     func mudarPagina(avancando: Bool) {
-        let paginas = IslandPage.allCases
+        let paginas = visiblePages
         guard let atual = paginas.firstIndex(of: page) else { return }
         let proximo = avancando
             ? (atual + 1) % paginas.count

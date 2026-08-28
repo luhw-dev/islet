@@ -50,8 +50,33 @@ por engano: Ajustes do Sistema › Privacidade e Segurança › Automação › 
 - **Aviso de troca de faixa**: a ilha abre sozinha por ~2,5s (desligável no menu).
 - **Bateria**: anel com porcentagem, tempo até 100%, e abertura automática ao ligar na tomada.
 - **Prateleira**: arraste arquivos para dentro da ilha e para fora, em outro app.
+- **Uso de IA**: página com um anel por assistente (Claude Code e Codex) e as
+  janelas de limite do selecionado — sessão de 5 h, semana e semana por modelo,
+  com quanto falta para renovar. A cor vem do quanto foi gasto, não da marca.
+  Desligável no menu ("Mostrar uso de IA").
 
 ## Decisões que valem saber
+
+**De onde vem o uso de IA.** Cada assistente tem uma fonte diferente, e nenhuma é
+oficialmente uma API de quota:
+
+- *Claude Code* — token OAuth lido do chaveiro (item `Claude Code-credentials`,
+  com queda para `~/.claude/.credentials.json`) e `GET /api/oauth/usage` na
+  Anthropic, o mesmo dado do `/usage` do CLI. A Islet **não** renova o token:
+  quem faz isso é o Claude Code, e como relemos o chaveiro a cada consulta a
+  renovação chega sozinha. Na primeira leitura o macOS pergunta se a Islet pode
+  ler aquele item — é preciso responder "Sempre Permitir". Se for negado, o
+  provedor sai do ciclo automático e só volta pelo botão ↻, para o app não virar
+  um desfile de diálogos do sistema.
+- *Codex* — não há endpoint público, mas o próprio CLI grava o que o servidor
+  responde: cada evento `token_count` do rollout em `~/.codex/sessions/` traz
+  `rate_limits`. Lemos o fim dos arquivos mais recentes e ficamos com a medição
+  mais nova. A consequência é que o número só anda quando o Codex roda — por
+  isso a leitura carrega a data, e a ilha escreve "medido há 2 d" quando ela
+  envelhece, em vez de fingir que é de agora.
+
+Nada é consultado no lançamento: a primeira leitura acontece quando a página
+aparece, e depois disso a cada 5 min.
 
 **Os cantos são a squircle de verdade.** O macOS 26 Tahoe usa 26 pt nas janelas
 com toolbar, no desenho concêntrico. Mas o raio sozinho não basta: a curva da

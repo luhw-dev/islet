@@ -32,6 +32,9 @@ enum Debug {
     static let testShelf: [URL] = (ProcessInfo.processInfo.environment["ISLET_TEST_SHELF"] ?? "")
         .split(separator: ",")
         .map { URL(fileURLWithPath: String($0)) }
+    /// Página em que a ilha deve abrir com ISLET_OPEN_ON_LAUNCH (media, shelf,
+    /// clipboard, usage).
+    static let openPage = ProcessInfo.processInfo.environment["ISLET_OPEN_PAGE"]
     /// Fração (0...1) para um seek automático alguns segundos após abrir.
     static let testSeek = ProcessInfo.processInfo.environment["ISLET_TEST_SEEK"].flatMap(Double.init)
 }

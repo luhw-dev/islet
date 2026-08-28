@@ -48,7 +48,17 @@ final class DisplayManager {
             controllers.forEach { $0.model.addToShelf(Debug.testShelf) }
         }
         if Debug.openOnLaunch {
-            controllers.forEach { $0.model.flash(.expanded, for: 120) }
+            let pagina: IslandPage? = switch Debug.openPage {
+            case "shelf": .shelf
+            case "clipboard": .clipboard
+            case "usage": .usage
+            case "media": .media
+            default: nil
+            }
+            controllers.forEach { controlador in
+                if let pagina { controlador.model.page = pagina }
+                controlador.model.flash(.expanded, for: 120)
+            }
         }
     }
 
