@@ -14,6 +14,8 @@ struct UsageView: View {
         // O botão fica por cima dos anéis, e não numa linha de cabeçalho: as
         // três barras do Claude só cabem se ninguém gastar altura com título.
         .overlay(alignment: .topTrailing) { botaoAtualizar }
+        .onAppear { usage.pageAppeared() }
+        .onDisappear { usage.pageDisappeared() }
     }
 
     private var botaoAtualizar: some View {

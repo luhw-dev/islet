@@ -46,7 +46,6 @@ final class IslandModel: ObservableObject {
     @Published var mode: IslandMode = .collapsed {
         didSet {
             guard mode != oldValue else { return }
-            if mode == .expanded, page == .usage { app.usage.refreshIfStale() }
             Debug.log("modo \(oldValue) -> \(mode) (zona=\(hoverZone))")
         }
     }
@@ -56,13 +55,7 @@ final class IslandModel: ObservableObject {
     @Published private(set) var hud: HUDEvent?
     @Published private(set) var hoverZone: HoverZone = .none
     @Published private(set) var isHovering = false
-    @Published var page: IslandPage = .media {
-        didSet {
-            // A consulta de uso sai daqui, e não do lançamento: assim o app só
-            // toca no chaveiro quando a página é realmente aberta.
-            if page != oldValue, page == .usage { app.usage.refreshIfStale() }
-        }
-    }
+    @Published var page: IslandPage = .media
     @Published private(set) var isMenuOpen = false
 
     let geometry: IslandGeometry

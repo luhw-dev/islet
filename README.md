@@ -67,7 +67,11 @@ oficialmente uma API de quota:
   renovação chega sozinha. Na primeira leitura o macOS pergunta se a Islet pode
   ler aquele item — é preciso responder "Sempre Permitir". Se for negado, o
   provedor sai do ciclo automático e só volta pelo botão ↻, para o app não virar
-  um desfile de diálogos do sistema.
+  um desfile de diálogos do sistema. O token lido fica guardado em memória pela
+  validade que ele mesmo anuncia (~8 h): o chaveiro é lido uma vez por token, e
+  não uma vez por consulta — sem isso, cada atualização acordava o diálogo de
+  novo, porque a lista de apps confiáveis do item se perde quando o Claude Code
+  regrava a credencial ao renovar.
 - *Codex* — não há endpoint público, mas o próprio CLI grava o que o servidor
   responde: cada evento `token_count` do rollout em `~/.codex/sessions/` traz
   `rate_limits`. Lemos o fim dos arquivos mais recentes e ficamos com a medição
@@ -75,8 +79,9 @@ oficialmente uma API de quota:
   isso a leitura carrega a data, e a ilha escreve "medido há 2 d" quando ela
   envelhece, em vez de fingir que é de agora.
 
-Nada é consultado no lançamento: a primeira leitura acontece quando a página
-aparece, e depois disso a cada 5 min.
+Nada é consultado no lançamento, e nada com a página fechada: a primeira leitura
+acontece quando ela aparece e o relógio (de 1 min) só corre enquanto ela estiver
+à vista. Ilha fechada não faz rede nem toca no chaveiro.
 
 **Os cantos são a squircle de verdade.** O macOS 26 Tahoe usa 26 pt nas janelas
 com toolbar, no desenho concêntrico. Mas o raio sozinho não basta: a curva da
