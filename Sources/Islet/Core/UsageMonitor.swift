@@ -3,9 +3,10 @@ import Combine
 
 /// Junta o que cada assistente informa de limite e mantém isso fresco.
 ///
-/// Nada é consultado no lançamento: a primeira leitura só acontece quando a
-/// página aparece. É o que evita o app pedir acesso ao chaveiro sozinho, antes
-/// de a pessoa ter ido ver o uso.
+/// Nada é consultado no lançamento, e nada é consultado com a página fechada: a
+/// primeira leitura acontece quando ela aparece, e o relógio só corre enquanto
+/// ela estiver à vista. Consultar às escondidas não teria para quem mostrar, e
+/// no caso do Claude ainda acordaria o diálogo do chaveiro fora de hora.
 @MainActor
 final class UsageMonitor: ObservableObject {
     @Published private(set) var states: [UsageProvider: UsageState] = [:]
@@ -13,8 +14,8 @@ final class UsageMonitor: ObservableObject {
     /// Qual provedor está detalhado embaixo dos anéis.
     @Published var selected: UsageProvider = .claude
 
-    /// De quanto em quanto tempo revisitamos as fontes depois da primeira vez.
-    private static let intervalo: TimeInterval = 5 * 60
+    /// De quanto em quanto tempo revisitamos as fontes com a página aberta.
+    private static let intervalo: TimeInterval = 60
 
     private let settings: Settings
     private let sources: [UsageSource] = [ClaudeUsageSource(), CodexUsageSource()]
@@ -25,6 +26,8 @@ final class UsageMonitor: ObservableObject {
     /// acesso ao chaveiro negado.
     private var bloqueados: Set<UsageProvider> = []
     private var cancellables = Set<AnyCancellable>()
+    /// Quantas ilhas estão com a página de uso na tela (uma por monitor).
+    private var espectadores = 0
 
     init(settings: Settings) {
         self.settings = settings
@@ -42,6 +45,18 @@ final class UsageMonitor: ObservableObject {
     deinit { timer?.invalidate() }
 
     var providers: [UsageProvider] { UsageProvider.allCases }
+
+    /// A página entrou em cena numa das ilhas.
+    func pageAppeared() {
+        espectadores += 1
+        refreshIfStale()
+        startTimer()
+    }
+
+    func pageDisappeared() {
+        espectadores = max(0, espectadores - 1)
+        if espectadores == 0 { stopTimer() }
+    }
 
     func state(for provider: UsageProvider) -> UsageState {
         states[provider] ?? .loading
@@ -92,7 +107,6 @@ final class UsageMonitor: ObservableObject {
             isRefreshing = false
             refreshTask = nil
             ajustarSelecao()
-            startTimer()
             Debug.log("uso atualizado: " + states.map { "\($0.key.rawValue)=\($0.value.snapshot.map { Int($0.headline) } ?? -1)" }.joined(separator: " "))
         }
     }
@@ -106,7 +120,7 @@ final class UsageMonitor: ObservableObject {
     }
 
     private func startTimer() {
-        guard timer == nil, settings.showUsage else { return }
+        guard timer == nil, settings.showUsage, espectadores > 0 else { return }
         let novo = Timer(timeInterval: Self.intervalo, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }

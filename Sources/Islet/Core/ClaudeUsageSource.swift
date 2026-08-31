@@ -4,8 +4,8 @@ import Security
 /// Uso do Claude Code: token OAuth do chaveiro + endpoint que alimenta o
 /// `/usage` do próprio CLI.
 ///
-/// Não renovamos o token: quem faz isso é o Claude Code. Como relemos o
-/// chaveiro a cada consulta, a renovação dele chega aqui sozinha.
+/// Não renovamos o token: quem faz isso é o Claude Code. O que guardamos é a
+/// leitura — ver `ClaudeTokenStore`.
 struct ClaudeUsageSource: UsageSource {
     let provider: UsageProvider = .claude
 
@@ -13,9 +13,34 @@ struct ClaudeUsageSource: UsageSource {
     private static let keychainService = "Claude Code-credentials"
 
     func load() async throws -> UsageSnapshot {
-        let token = try Self.accessToken()
+        var (data, status) = try await Self.consultar(
+            token: try await ClaudeTokenStore.shared.current())
 
-        var request = URLRequest(url: Self.endpoint)
+        if status == 401 || status == 403 {
+            // O token guardado caiu antes da validade que ele mesmo anunciava
+            // (o Claude Code pode ter trocado a credencial). Vale reler o
+            // chaveiro uma vez — e só uma, para não virar laço de diálogo.
+            (data, status) = try await Self.consultar(
+                token: try await ClaudeTokenStore.shared.current(reloading: true))
+        }
+
+        switch status {
+        case 200:
+            break
+        case 401, 403:
+            throw UsageError.semCredencial("Sessão expirada — abra o Claude Code")
+        default:
+            throw UsageError.indisponivel("Erro \(status)")
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw UsageError.indisponivel("Resposta ilegível")
+        }
+        return try Self.snapshot(from: json)
+    }
+
+    private static func consultar(token: String) async throws -> (Data, Int) {
+        var request = URLRequest(url: endpoint)
         request.timeoutInterval = 12
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -26,30 +51,18 @@ struct ClaudeUsageSource: UsageSource {
         } catch {
             throw UsageError.indisponivel("Sem conexão")
         }
-
         guard let http = response as? HTTPURLResponse else {
             throw UsageError.indisponivel("Resposta inesperada")
         }
-        switch http.statusCode {
-        case 200:
-            break
-        case 401, 403:
-            throw UsageError.semCredencial("Sessão expirada — abra o Claude Code")
-        default:
-            throw UsageError.indisponivel("Erro \(http.statusCode)")
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw UsageError.indisponivel("Resposta ilegível")
-        }
-        return try Self.snapshot(from: json)
+        return (data, http.statusCode)
     }
 
     // MARK: - Credencial
 
-    private static func accessToken() throws -> String {
+    /// Token e até quando ele vale, na ordem em que o Claude Code guarda.
+    static func credencial() throws -> (token: String, validoAte: Date?) {
         do {
-            return try tokenFromKeychain()
+            return try credencialDoChaveiro()
         } catch let erro as UsageError {
             // Recusa é decisão da pessoa, e não falta de credencial: sobe como
             // está para o monitor parar de tentar sozinho.
@@ -57,11 +70,11 @@ struct ClaudeUsageSource: UsageSource {
         } catch {}
         // O Claude Code cai para um arquivo quando não tem chaveiro (containers,
         // sessões remotas). Se ele existir, serve igual.
-        if let doArquivo = tokenFromFile() { return doArquivo }
+        if let doArquivo = credencialDoArquivo() { return doArquivo }
         throw UsageError.semCredencial("Faça login no Claude Code")
     }
 
-    private static func tokenFromKeychain() throws -> String {
+    private static func credencialDoChaveiro() throws -> (token: String, validoAte: Date?) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
@@ -77,23 +90,27 @@ struct ClaudeUsageSource: UsageSource {
             }
             throw UsageError.semCredencial("Faça login no Claude Code")
         }
-        guard let token = accessToken(inCredentialData: data) else {
+        guard let credencial = credencial(emDados: data) else {
             throw UsageError.semCredencial("Credencial em formato desconhecido")
         }
-        return token
+        return credencial
     }
 
-    private static func tokenFromFile() -> String? {
+    private static func credencialDoArquivo() -> (token: String, validoAte: Date?)? {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/.credentials.json")
         guard let data = try? Data(contentsOf: url) else { return nil }
-        return accessToken(inCredentialData: data)
+        return credencial(emDados: data)
     }
 
-    private static func accessToken(inCredentialData data: Data) -> String? {
+    private static func credencial(emDados data: Data) -> (token: String, validoAte: Date?)? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = json["claudeAiOauth"] as? [String: Any] else { return nil }
-        return oauth["accessToken"] as? String
+              let oauth = json["claudeAiOauth"] as? [String: Any],
+              let token = oauth["accessToken"] as? String else { return nil }
+        // `expiresAt` vem em milissegundos.
+        let validade = (oauth["expiresAt"] as? NSNumber)
+            .map { Date(timeIntervalSince1970: $0.doubleValue / 1000) }
+        return (token, validade)
     }
 
     // MARK: - Resposta
@@ -147,5 +164,36 @@ struct ClaudeUsageSource: UsageSource {
             janela("five_hour", kind: .session, rotulo: "Sessão"),
             janela("seven_day", kind: .weekly, rotulo: "Semana")
         ].compactMap { $0 }
+    }
+}
+
+/// Segura o token entre consultas.
+///
+/// O item do chaveiro é do Claude Code, e o macOS pergunta a cada leitura feita
+/// por outro app enquanto ele não estiver na lista de confiança do item — lista
+/// que se perde quando o Claude Code regrava a credencial ao renovar. Lendo uma
+/// vez por validade do token, e não a cada consulta, o diálogo deixa de ser
+/// recorrente mesmo quando isso acontece.
+actor ClaudeTokenStore {
+    static let shared = ClaudeTokenStore()
+
+    private var token: String?
+    private var validoAte: Date?
+
+    /// Sem validade anunciada, guarda por meia hora — o bastante para não
+    /// reler a cada atualização, pouco para não segurar um token morto.
+    private static let validadePadrao: TimeInterval = 30 * 60
+    /// Margem antes do vencimento: token que expira no meio da consulta não
+    /// serve para nada.
+    private static let margem: TimeInterval = 60
+
+    func current(reloading: Bool = false) throws -> String {
+        if !reloading, let token, let validoAte, validoAte.timeIntervalSinceNow > Self.margem {
+            return token
+        }
+        let credencial = try ClaudeUsageSource.credencial()
+        token = credencial.token
+        validoAte = credencial.validoAte ?? Date().addingTimeInterval(Self.validadePadrao)
+        return credencial.token
     }
 }
